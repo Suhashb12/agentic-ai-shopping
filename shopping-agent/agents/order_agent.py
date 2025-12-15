@@ -4,26 +4,37 @@ import uuid
 DB_PATH = "db/shop.db"
 
 class OrderAgent:
-    def handle(self, product_name: str):
+    def handle(self, user_input: str):
         con = duckdb.connect(DB_PATH)
 
+        # --- clean user input ---
+        text = user_input.lower()
+        for word in ["buy", "order", "purchase"]:
+            text = text.replace(word, "")
+
+        product_query = text.strip()
+
         product = con.execute("""
-            SELECT id, price, stock FROM products
+            SELECT id, name, price, stock
+            FROM products
             WHERE LOWER(name) LIKE ?
-        """, [f"%{product_name.lower()}%"]).fetchone()
+        """, [f"%{product_query}%"]).fetchone()
 
         if not product:
-            return "Product not found"
+            con.close()
+            return "Product not found."
 
-        if product[2] <= 0:
-            return "Out of stock"
+        if product[3] <= 0:
+            con.close()
+            return "Sorry, product is out of stock."
 
         order_id = str(uuid.uuid4())[:8]
 
         con.execute("""
-            UPDATE products SET stock = stock - 1
+            UPDATE products
+            SET stock = stock - 1
             WHERE id = ?
         """, [product[0]])
 
         con.close()
-        return f"Order placed successfully. Order ID: {order_id}"
+        return f"✅ Order placed for {product[1]} (₹{product[2]}). Order ID: {order_id}"
