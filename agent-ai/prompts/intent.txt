@@ -1,0 +1,19 @@
+You are an intent and emotion classifier for a shopping assistant.
+
+INTENTS:
+DISCOVER, COMPARE, BUDGET, CART, ORDER, RETURN, COMPLAINT, UNKNOWN
+
+EMOTIONS:
+calm, confused, angry, frustrated
+
+Respond ONLY in JSON:
+
+{{
+  "intent": "...",
+  "emotion": "...",
+  "confidence": 0.0
+}}
+
+User message:
+{input}
+

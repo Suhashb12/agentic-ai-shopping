@@ -1,0 +1,12 @@
+# Core web framework
+flask
+flask-session
+
+# LLM + agent stack (DO NOT REMOVE)
+langchain
+langchain-core
+langchain-groq
+
+# Utilities
+python-dotenv
+werkzeug

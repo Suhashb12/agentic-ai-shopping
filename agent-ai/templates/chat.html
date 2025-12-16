@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Shopping Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body data-loggedin="{{ '1' if session.get('user_id') else '' }}">
+
+<!-- Top-right auth button -->
+<div class="top-right">
+  {% if session.get("user_id") %}
+    <a href="/logout" class="auth-btn">Logout</a>
+  {% else %}
+    <a href="/login" class="auth-btn">Sign in</a>
+  {% endif %}
+</div>
+
+<!-- Chat container -->
+<div id="chat-container">
+  <div id="chat-box">
+    {% for role, msg in chat_history %}
+      <div class="message {{ role }}">{{ msg }}</div>
+    {% endfor %}
+  </div>
+
+  <div id="input-area">
+    <input id="user-input" placeholder="Type your message..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<!-- Signup popup -->
+<div id="auth-popup" class="popup hidden">
+  <div class="popup-content">
+    <span class="close" onclick="closePopup()">×</span>
+    <h3>Create an account to save your chats</h3>
+    <p>
+      Sign up or sign in to securely access your conversations anytime.
+      Continue as a guest to use temporary chat (data will be lost on refresh).
+    </p>
+    <a href="/signup">Sign Up</a> |
+    <a href="/login">Sign In</a>
+  </div>
+</div>
+
+<script src="/static/chat.js"></script>
+</body>
+</html>
