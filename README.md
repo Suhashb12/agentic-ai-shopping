@@ -147,3 +147,12 @@ Suggest good cosmetics under 1000
 Recommend fashion clothes for casual wear
 
 Compare two budget mobiles
+
+
+## 📄 License
+
+MIT License
+
+## 🤝 Contributing
+
+Contributions welcome! Please open an issue or submit a pull request.
