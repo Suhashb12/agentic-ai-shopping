@@ -1,4 +1,4 @@
-# 🛒 AI Shopping Assistant — Agentic AI (Hackathon Build)
+# 🛒 AI Shopping Assistant — Agentic AI 
 
 An **Agentic AI–powered Shopping Assistant** built using **Python, Flask, LangChain, Groq LLM, and SQLite**, designed to simulate a real-world e-commerce assistant with memory, authentication, and grounded product recommendations.
 
