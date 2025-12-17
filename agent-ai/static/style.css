@@ -1,83 +1,180 @@
 body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f8;
   margin: 0;
-  height: 100vh;
+  font-family: Inter, Arial, sans-serif;
+  background: #f5f7fa;
 }
 
-.chat-container {
-  width: 90vw;          /* 80% of viewport width */
-  height: 90vh;         /* 80% of viewport height */
-  margin: 40px auto;    /* center horizontally */
+/* ---------- CHAT LAYOUT ---------- */
+#chat-container {
+  width: 80%;
+  height: 85vh;
+  margin: 40px auto;
   background: white;
   border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
 }
 
-.chat-header {
-  padding: 15px;
-  background: #2c7be5;
-  color: white;
-  font-weight: bold;
-  text-align: center;
-  border-radius: 10px 10px 0 0;
-}
-
-.chat-box {
-  flex: 1;              /* take all available space */
-  padding: 15px;
+#chat-box {
+  flex: 1;
+  padding: 20px;
   overflow-y: auto;
-  background: #fafafa;
 }
 
 .message {
-  margin-bottom: 10px;
   max-width: 70%;
-  padding: 10px;
+  padding: 12px 14px;
   border-radius: 8px;
+  margin-bottom: 12px;
   line-height: 1.4;
 }
 
-.user {
-  margin-left: auto;
-  background: #2c7be5;
+.message.user {
+  background: #2563eb;
   color: white;
+  margin-left: auto;
 }
 
-.bot {
+.message.assistant {
+  background: #f1f3f5;
+  color: #111;
   margin-right: auto;
-  background: #e9ecef;
 }
 
-.chat-input {
+#input-area {
   display: flex;
-  border-top: 1px solid #ddd;
+  padding: 14px;
+  border-top: 1px solid #e5e7eb;
 }
 
-.chat-input input {
+#user-input {
   flex: 1;
   padding: 12px;
-  font-size: 14px;
-  border: none;
-  outline: none;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
 }
 
-.chat-input button {
-  padding: 12px 20px;
+button {
+  margin-left: 10px;
+  padding: 10px 16px;
   border: none;
-  background: #2c7be5;
+  border-radius: 6px;
+  background: #2563eb;
   color: white;
   cursor: pointer;
 }
-.thinking {
-  font-style: italic;
-  opacity: 0.6;
+
+/* ---------- TOP RIGHT AUTH ---------- */
+.top-right {
+  position: fixed;
+  top: 20px;
+  right: 30px;
 }
 
-.meta {
-  font-size: 11px;
-  color: #999;
-  margin: 2px 10px 6px 10px;
+.auth-btn {
+  text-decoration: none;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+/* ---------- AUTH PAGES ---------- */
+.auth-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.auth-card {
+  background: white;
+  padding: 30px;
+  width: 350px;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+}
+
+.auth-card button {
+  width: 100%;
+}
+/* ---------- AUTH MODAL OVERLAY ---------- */
+
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.auth-overlay.hidden {
+  display: none;
+}
+
+.auth-modal {
+  background: #1f2937;
+  color: #f9fafb;
+  width: 380px;
+  padding: 30px;
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.auth-modal h2 {
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+
+.auth-modal p {
+  font-size: 14px;
+  color: #d1d5db;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+
+.auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.primary-btn {
+  background: #ffffff;
+  color: #111827;
+  padding: 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.secondary-btn {
+  background: #374151;
+  color: #ffffff;
+  padding: 12px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.ghost-btn {
+  margin-top: 14px;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 13px;
 }

@@ -1,49 +1,82 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Shopping Assistant</title>
+  <meta charset="UTF-8">
+  <title>AI Shopping Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Main Styles -->
   <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body data-loggedin="{{ '1' if session.get('user_id') else '' }}">
 
-<!-- Top-right auth button -->
-<div class="top-right">
-  {% if session.get("user_id") %}
-    <a href="/logout" class="auth-btn">Logout</a>
-  {% else %}
-    <a href="/login" class="auth-btn">Sign in</a>
-  {% endif %}
+<!-- Default assistant greeting -->
+<div class="message assistant">
+  👋 Hi! I’m your AI Shopping Assistant.
+  How can I help you today?
 </div>
 
-<!-- Chat container -->
-<div id="chat-container">
-  <div id="chat-box">
-    {% for role, msg in chat_history %}
-      <div class="message {{ role }}">{{ msg }}</div>
-    {% endfor %}
+  <!-- Top-right auth button -->
+  <div class="top-right">
+    {% if session.get("user_id") %}
+      <a href="/logout" class="auth-btn">Logout</a>
+    {% else %}
+      <a href="/login" class="auth-btn">Sign in</a>
+    {% endif %}
   </div>
 
-  <div id="input-area">
-    <input id="user-input" placeholder="Type your message..." />
-    <button onclick="sendMessage()">Send</button>
-  </div>
-</div>
+  <!-- ================= CHAT CONTAINER ================= -->
+  <div id="chat-container">
 
-<!-- Signup popup -->
-<div id="auth-popup" class="popup hidden">
-  <div class="popup-content">
-    <span class="close" onclick="closePopup()">×</span>
-    <h3>Create an account to save your chats</h3>
-    <p>
-      Sign up or sign in to securely access your conversations anytime.
-      Continue as a guest to use temporary chat (data will be lost on refresh).
-    </p>
-    <a href="/signup">Sign Up</a> |
-    <a href="/login">Sign In</a>
-  </div>
-</div>
+    <!-- Chat messages -->
+    <div id="chat-box">
+      {% for role, msg in chat_history %}
+        <div class="message {{ role }}">{{ msg }}</div>
+      {% endfor %}
+    </div>
 
-<script src="/static/chat.js"></script>
+    <!-- Input area -->
+    <div id="input-area">
+      <input
+        id="user-input"
+        type="text"
+        placeholder="Type your message…"
+        autocomplete="off"
+      />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+
+  </div>
+  <!-- ================================================== -->
+
+
+  <!-- ================= AUTH MODAL OVERLAY ================= -->
+  <div id="auth-overlay" class="auth-overlay hidden">
+    <div class="auth-modal">
+      <h2>Thanks for trying AI Shopping Assistant</h2>
+
+      <p>
+        Log in or create an account to save your chats,
+        get personalized shopping recommendations,
+        and continue conversations anytime.
+      </p>
+
+      <div class="auth-actions">
+        <a href="/login" class="primary-btn">Log in</a>
+        <a href="/signup" class="secondary-btn">Sign up for free</a>
+      </div>
+
+      <button class="ghost-btn" onclick="closeAuthModal()">
+        Continue as guest
+      </button>
+    </div>
+  </div>
+  <!-- ======================================================= -->
+
+
+  <!-- Chat Logic -->
+  <script src="/static/chat.js"></script>
+
 </body>
 </html>

@@ -1,20 +1,22 @@
 from flask import Flask, render_template, request, jsonify, redirect, session
 from flask_session import Session
 
-# 🔹 NEW (Auth + Chat persistence)
+# ---------------- EXISTING AI IMPORTS (DO NOT CHANGE) ----------------
+from llm.intent_classifier import classify_intent
+from agents.shopping_agent import handle_shopping
+
+# ---------------- AUTH + CHAT STORAGE ----------------
 from auth import create_user, authenticate_user
 from chat_store import save_chat, load_chats
 
-# 🔹 EXISTING imports (KEEP YOUR LANGCHAIN / GROQ IMPORTS AS-IS)
-# from llm.intent_classifier import classify_intent
-# from agents.shopping_agent import handle_shopping
-# etc...
+import sqlite3
+
+# -------------------------------------------------------------------
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key"
+app.secret_key = "super-secret-key-change-this"
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
-
 
 # ---------------- HOME ----------------
 @app.route("/")
@@ -25,7 +27,7 @@ def index():
     return render_template("chat.html", chat_history=chat_history)
 
 
-# ---------------- CHAT ----------------
+# ---------------- CHAT API ----------------
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json()
@@ -34,18 +36,18 @@ def chat():
     if not user_input:
         return jsonify({"reply": "Please enter a message."})
 
-    # 🔴 EXISTING LANGCHAIN / GROQ AI PIPELINE (DO NOT CHANGE)
-    # ------------------------------------------------------
-    # Example ONLY — replace with YOUR actual pipeline:
-    #
-    # intent = classify_intent(user_input)
-    # reply = handle_shopping(user_input, intent)
-    #
-    # ⛔ DO NOT stub or replace your logic
-    reply = existing_ai_pipeline(user_input)  # <-- THIS REPRESENTS YOUR CURRENT CODE
-    # ------------------------------------------------------
+    # ================= SAFETY WRAP (RECOMMENDED) =================
+    try:
+        # 🔹 EXISTING AI PIPELINE (UNCHANGED)
+        intent = classify_intent(user_input)
+        reply = handle_shopping(user_input, intent)
 
-    # ✅ NEW: Save chat ONLY if logged in
+    except Exception as e:
+        # Never crash UI
+        print("❌ AI ERROR:", e)
+        reply = "Sorry, something went wrong while processing your request. Please try again."
+
+    # ================= CHAT PERSISTENCE =================
     if "user_id" in session:
         save_chat(session["user_id"], "user", user_input)
         save_chat(session["user_id"], "assistant", reply)
@@ -57,13 +59,16 @@ def chat():
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if request.method == "POST":
-        ok = create_user(
+        success = create_user(
             request.form["full_name"],
             request.form["email"],
             request.form["mobile"],
             request.form["password"]
         )
-        return redirect("/login") if ok else "Email already exists"
+        if success:
+            return redirect("/login")
+        return "User already exists"
+
     return render_template("signup.html")
 
 
@@ -79,6 +84,7 @@ def login():
             session["user_id"] = user_id
             return redirect("/")
         return "Invalid credentials"
+
     return render_template("login.html")
 
 
@@ -88,10 +94,14 @@ def logout():
     session.clear()
     return redirect("/")
 
-#--------------- VERIFY -------------------
+
+# ---------------- EMAIL VERIFY ----------------
 @app.route("/verify")
 def verify():
     token = request.args.get("token")
+    if not token:
+        return "Invalid verification link"
+
     conn = sqlite3.connect("users.db")
     cur = conn.cursor()
     cur.execute(
@@ -100,13 +110,17 @@ def verify():
     )
     conn.commit()
     conn.close()
-    return "Email verified. You can now log in."
 
-#--------------- forgot-password --------------
+    return "Email verified successfully. You can now log in."
+
+
+# ---------------- FORGOT PASSWORD ----------------
 @app.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
     if request.method == "POST":
         email = request.form["email"]
+
+        import random
         otp = str(random.randint(100000, 999999))
 
         conn = sqlite3.connect("users.db")
@@ -118,39 +132,47 @@ def forgot_password():
         conn.commit()
         conn.close()
 
-        send_otp_email(email, otp)
+        print(f"[OTP DEBUG] {email} -> {otp}")
         return redirect("/reset-password")
 
     return render_template("forgot_password.html")
 
-#--------------- reset-password --------------
-@app.route("/reset-password", methods=["POST", "GET"])
+
+# ---------------- RESET PASSWORD ----------------
+@app.route("/reset-password", methods=["GET", "POST"])
 def reset_password():
     if request.method == "POST":
         email = request.form["email"]
         otp = request.form["otp"]
-        password = request.form["password"]
+        new_password = request.form["password"]
+
+        from werkzeug.security import generate_password_hash
 
         conn = sqlite3.connect("users.db")
         cur = conn.cursor()
+
         cur.execute(
             "SELECT 1 FROM password_otps WHERE email=? AND otp=?",
             (email, otp)
         )
         valid = cur.fetchone()
 
-        if valid:
-            cur.execute(
-                "UPDATE users SET password_hash=? WHERE email=?",
-                (generate_password_hash(password), email)
-            )
-            conn.commit()
+        if not valid:
+            conn.close()
+            return "Invalid OTP"
 
+        cur.execute(
+            "UPDATE users SET password_hash=? WHERE email=?",
+            (generate_password_hash(new_password), email)
+        )
+        conn.commit()
         conn.close()
+
         return redirect("/login")
 
     return render_template("reset_password.html")
 
 
+# ---------------- MAIN ----------------
 if __name__ == "__main__":
     app.run(debug=True)
