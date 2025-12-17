@@ -113,31 +113,38 @@ Generic product schema:
 ```bash
 python -m venv aiagent
 source aiagent/bin/activate
-
+```
 
 2️⃣ Install dependencies
+```bash
 pip install -r requirements.txt
+```
 
 3️⃣ Set Groq API Key
+```bash
 export GROQ_API_KEY="your_groq_api_key"
-
+```
 
 (Windows PowerShell)
-
+```bash
 setx GROQ_API_KEY "your_groq_api_key"
+```
 
 4️⃣ Initialize databases
+```bash
 python db/init_auth_chat_db.py
 python db/generate_cosmetics_fashion.py
+```
 
 5️⃣ Run the application
+```bash
 python app.py
-
+```
 
 Open in browser:
-
+```bash
 http://<VM-IP>:5000
-
+```
 🧪 Example Prompts
 
 Which phone under 20000 has a 50MP camera?
@@ -151,7 +158,7 @@ Compare two budget mobiles
 
 ## 📄 License
 
-MIT License
+SIT License
 
 ## 🤝 Contributing
 
