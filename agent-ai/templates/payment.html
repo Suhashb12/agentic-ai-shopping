@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment</title>
+</head>
+<body style="text-align:center; margin-top:50px;">
+    <h2>💳 Payment Page</h2>
+    <p>Order ID: <b>{{ order_id }}</b></p>
+
+    <button onclick="payNow()">Pay Now</button>
+
+    <script>
+        function payNow() {
+            window.location.href = "/payment-success/{{ order_id }}";
+        }
+    </script>
+</body>
+</html>

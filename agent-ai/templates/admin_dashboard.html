@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h2>Refund Requests</h2>
+
+    {% if orders %}
+        <ul>
+        {% for o in orders %}
+            <li>
+                Order ID: {{ o[0] }} | Product: {{ o[1] }} | Status: {{ o[2] }}
+                <form method="POST" action="/admin/refund/{{ o[0] }}">
+                    <button type="submit">Approve Refund</button>
+                </form>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No pending refunds.</p>
+    {% endif %}
+</body>
+</html>

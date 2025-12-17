@@ -1,182 +1,200 @@
-from flask import Flask, render_template, request, jsonify, redirect, session
-from flask_session import Session
-
-# ---------------- EXISTING AI IMPORTS (DO NOT CHANGE) ----------------
-from llm.intent_classifier import classify_intent
-from agents.shopping_agent import handle_shopping
-
-# ---------------- AUTH + CHAT STORAGE ----------------
-from auth import create_user, authenticate_user
-from chat_store import save_chat, load_chats
-
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 import sqlite3
 
-# -------------------------------------------------------------------
+# ---- Core AI logic ----
+
+from agents.complaint_agent import handle_complaint
+from llm.intent_classifier import classify_intent
+from agents.shopping_agent import existing_ai_pipeline
+from agents.order_tracking_agent import track_order
+
+DB_PATH = "shopping.db"
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key-change-this"
-app.config["SESSION_TYPE"] = "filesystem"
-Session(app)
+app.secret_key = "dev-secret-key"
 
-# ---------------- HOME ----------------
+
+# -------------------------------------------------
+# 🏠 Home
+# -------------------------------------------------
 @app.route("/")
 def index():
-    chat_history = []
-    if "user_id" in session:
-        chat_history = load_chats(session["user_id"])
-    return render_template("chat.html", chat_history=chat_history)
+    return render_template("chat.html")
 
 
-# ---------------- CHAT API ----------------
+# -------------------------------------------------
+# 💬 Chat Router (MAIN ENTRY)
+# -------------------------------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
-    user_input = data.get("message", "").strip()
-
+    user_input = request.json.get("message", "").strip()
     if not user_input:
         return jsonify({"reply": "Please enter a message."})
 
-    # ================= SAFETY WRAP (RECOMMENDED) =================
+    user_id = session.get("user_id")  # None if guest
+
     try:
-        # 🔹 EXISTING AI PIPELINE (UNCHANGED)
-        intent = classify_intent(user_input)
-        reply = handle_shopping(user_input, intent)
+        intent_data = classify_intent(user_input)
+        intent = intent_data.get("intent")  # ✅ FIX
+
+        # -------------------------
+        # ORDER TRACKING
+        # -------------------------
+        if intent == "track_order":
+            order_id = intent_data.get("order_id")
+            reply = track_order(order_id)
+            return jsonify({"reply": reply})
+
+        # -------------------------
+        # COMPLAINT / RETURN
+        # -------------------------
+        if intent in ["raise_complaint", "return_order", "replace_order"]:
+            reply = handle_complaint(intent_data)
+            return jsonify({"reply": reply})
+
+        # -------------------------
+        # SHOPPING / ORDER FLOW
+        # -------------------------
+        reply = existing_ai_pipeline(user_input, user_id)
+        return jsonify({"reply": reply})
 
     except Exception as e:
-        # Never crash UI
-        print("❌ AI ERROR:", e)
-        reply = "Sorry, something went wrong while processing your request. Please try again."
-
-    # ================= CHAT PERSISTENCE =================
-    if "user_id" in session:
-        save_chat(session["user_id"], "user", user_input)
-        save_chat(session["user_id"], "assistant", reply)
-
-    return jsonify({"reply": reply})
+        print("CHAT ERROR:", e)
+        return jsonify({"reply": "Something went wrong. Please try again."})
 
 
-# ---------------- SIGNUP ----------------
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        success = create_user(
-            request.form["full_name"],
-            request.form["email"],
-            request.form["mobile"],
-            request.form["password"]
-        )
-        if success:
-            return redirect("/login")
-        return "User already exists"
-
-    return render_template("signup.html")
+# -------------------------------------------------
+# 💳 Payment Page
+# -------------------------------------------------
+@app.route("/pay/<order_id>")
+def pay(order_id):
+    return render_template("payment.html", order_id=order_id)
 
 
-# ---------------- LOGIN ----------------
-@app.route("/login", methods=["GET", "POST"])
+# -------------------------------------------------
+# ✅ Payment Success
+# -------------------------------------------------
+@app.route("/payment-success/<order_id>")
+def payment_success(order_id):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("""
+        UPDATE orders
+        SET payment_status = 'PAID',
+            order_status = 'CONFIRMED'
+        WHERE order_id = ?
+    """, (order_id,))
+    conn.commit()
+
+    cur.execute("""
+        SELECT product_name, price, payment_method
+        FROM orders
+        WHERE order_id = ?
+    """, (order_id,))
+    row = cur.fetchone()
+    conn.close()
+
+    product, price, payment = row if row else ("Unknown", 0, "ONLINE")
+
+    return render_template(
+        "payment_success.html",
+        order_id=order_id,
+        product=product,
+        price=price,
+        payment=payment
+    )
+
+
+# -------------------------------------------------
+# 🔐 Minimal Auth (Optional)
+# -------------------------------------------------
+@app.route("/login", methods=["POST"])
 def login():
-    if request.method == "POST":
-        user_id = authenticate_user(
-            request.form["email"],
-            request.form["password"]
-        )
-        if user_id:
-            session["user_id"] = user_id
-            return redirect("/")
-        return "Invalid credentials"
-
-    return render_template("login.html")
+    session["user_id"] = request.json.get("user_id")
+    return jsonify({"status": "logged_in"})
 
 
-# ---------------- LOGOUT ----------------
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect("/")
+    return jsonify({"status": "logged_out"})
 
+# ------------------------------------
+# ORDER DETAILS API (USED BY CHAT.JS)
+# ------------------------------------
+@app.route("/api/order/<order_id>", methods=["GET"])
+def get_order(order_id):
+    import sqlite3
 
-# ---------------- EMAIL VERIFY ----------------
-@app.route("/verify")
-def verify():
-    token = request.args.get("token")
-    if not token:
-        return "Invalid verification link"
-
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect("shopping.db")
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE users SET is_verified=1 WHERE verify_token=?",
-        (token,)
-    )
-    conn.commit()
+
+    cur.execute("""
+        SELECT product_name, price, payment_method, order_status
+        FROM orders
+        WHERE order_id = ?
+    """, (order_id,))
+
+    row = cur.fetchone()
     conn.close()
 
-    return "Email verified successfully. You can now log in."
+    if not row:
+        return jsonify({"error": "Order not found"}), 404
 
+    product, price, payment, status = row
 
-# ---------------- FORGOT PASSWORD ----------------
-@app.route("/forgot-password", methods=["GET", "POST"])
-def forgot_password():
+    return jsonify({
+        "order_id": order_id,
+        "product": product,
+        "price": price,
+        "payment": payment,
+        "status": status
+    })
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
     if request.method == "POST":
-        email = request.form["email"]
+        username = request.form.get("username")
+        password = request.form.get("password")
 
-        import random
-        otp = str(random.randint(100000, 999999))
+        if username == "admin" and password == "admin@4sy6":
+            session["admin"] = True
+            return redirect("/admin/dashboard")
 
-        conn = sqlite3.connect("users.db")
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO password_otps (email, otp) VALUES (?, ?)",
-            (email, otp)
-        )
-        conn.commit()
-        conn.close()
+        return "Invalid credentials", 401
 
-        print(f"[OTP DEBUG] {email} -> {otp}")
-        return redirect("/reset-password")
+    return render_template("admin_login.html")
 
-    return render_template("forgot_password.html")
+@app.route("/admin/dashboard")
+def admin_dashboard():
+    if not session.get("admin"):
+        return redirect("/admin/login")
 
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
-# ---------------- RESET PASSWORD ----------------
-@app.route("/reset-password", methods=["GET", "POST"])
-def reset_password():
-    if request.method == "POST":
-        email = request.form["email"]
-        otp = request.form["otp"]
-        new_password = request.form["password"]
+    cur.execute("""
+        SELECT o.order_id, o.product_name, o.order_status
+        FROM orders o
+        WHERE o.order_status = 'REFUND_INITIATED'
+    """)
 
-        from werkzeug.security import generate_password_hash
+    orders = cur.fetchall()
+    conn.close()
 
-        conn = sqlite3.connect("users.db")
-        cur = conn.cursor()
+    return render_template("admin_dashboard.html", orders=orders)
 
-        cur.execute(
-            "SELECT 1 FROM password_otps WHERE email=? AND otp=?",
-            (email, otp)
-        )
-        valid = cur.fetchone()
+@app.route("/admin/refund/<order_id>", methods=["POST"])
+def approve_refund(order_id):
+    if not session.get("admin"):
+        return "Unauthorized", 403
 
-        if not valid:
-            conn.close()
-            return "Invalid OTP"
+    complete_refund(order_id)
+    return redirect("/admin/dashboard")
 
-        cur.execute(
-            "UPDATE users SET password_hash=? WHERE email=?",
-            (generate_password_hash(new_password), email)
-        )
-        conn.commit()
-        conn.close()
-
-        return redirect("/login")
-
-    return render_template("reset_password.html")
-
-
-# ---------------- MAIN ----------------
+# -------------------------------------------------
+# 🚀 Run
+# -------------------------------------------------
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=True
-    )
+    app.run(debug=True)

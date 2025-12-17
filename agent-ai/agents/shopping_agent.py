@@ -1,77 +1,174 @@
 import sqlite3
-import json
-from llm.groq_client import get_llm
+import uuid
+from llm.intent_classifier import classify_intent
+
+DB_PATH = "shopping.db"
+ORDER_SESSIONS = {}
+
+def generate_order_id():
+    return "ORD-" + uuid.uuid4().hex[:8].upper()
 
 
-DB_PATH = "products.db"
+def existing_ai_pipeline(user_input: str, user_id: str = None):
+    user_key = user_id or "guest"
 
+    # Continue order flow
+    if user_key in ORDER_SESSIONS:
+        return continue_order_flow(user_key, user_input)
 
-def handle_shopping(user_input: str, intent: dict) -> str:
-    """
-    Main shopping agent:
-    - Grounds response in SQLite products
-    - Uses LLM only for reasoning & explanation
-    """
+    intent_data = classify_intent(user_input)
+    intent = intent_data.get("intent")
 
-    category = intent.get("category", "other")
-    budget = intent.get("budget")
+    # Start order flow
+    if intent == "place_order":
+        product_name = intent_data.get("product")
+        if not product_name:
+            return "Please specify which product you want to buy."
 
-    # If category not supported
-    if category not in ["mobile", "cosmetics", "fashion"]:
-        return "I can help with mobiles, cosmetics, and fashion products. Please specify one."
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
 
-    # ---------------- FETCH PRODUCTS ----------------
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
+        for table in ["mobiles", "fashion", "cosmetics"]:
+            cur.execute(
+                f"""
+                SELECT name, price FROM {table}
+                WHERE LOWER(name) LIKE ?
+                """,
+                (f"%{product_name.lower()}%",)
+            )
 
-    query = "SELECT name, brand, price, offer_price, attributes FROM products WHERE category=?"
-    params = [category]
+            row = cur.fetchone()
+            if row:
+                product, price = row
+                category = table
+                break
+        else:
+            conn.close()
+            return f"Sorry, I couldn't find **{product_name}** in our inventory."
 
-    if budget:
-        query += " AND offer_price <= ?"
-        params.append(budget)
+        conn.close()
 
-    cur.execute(query, params)
-    rows = cur.fetchall()
-    conn.close()
-
-    if not rows:
-        return f"Sorry, I couldn't find any {category} products within your budget."
-
-    # Prepare product summary for LLM
-    products = []
-    for name, brand, price, offer_price, attrs in rows[:5]:
-        products.append({
-            "name": name,
-            "brand": brand,
+        ORDER_SESSIONS[user_key] = {
+            "step": "name",
+            "product": product,
             "price": price,
-            "offer_price": offer_price,
-            "attributes": json.loads(attrs)
-        })
+            "category": category
+        }
 
-    # ---------------- LLM RESPONSE ----------------
-    llm = get_llm()
+        return "Please share your full name."
 
-    prompt = f"""
-You are a professional shopping assistant.
+    return handle_shopping(intent_data)
 
-User request:
-"{user_input}"
 
-Available products (JSON):
-{json.dumps(products, indent=2)}
+def handle_shopping(intent_data):
+    category = intent_data.get("category")
+    filters = intent_data.get("filters", {})
 
-Instructions:
-- Recommend the best 2–3 products
-- Explain briefly why they match the user's request
-- Be polite, calm, and professional
-- Do NOT mention databases or SQL
-"""
+    if category not in ["fashion", "mobiles", "cosmetics"]:
+        return "I can help you with mobiles, fashion, and cosmetics."
 
     try:
-        response = llm.invoke(prompt)
-        return response.content.strip()
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
+        query = f"SELECT name, price, gender FROM {category}"
+        conditions = []
+        params = []
+
+        if "budget" in filters and filters["budget"]:
+            conditions.append("price <= ?")
+            params.append(filters["budget"])
+
+        if category == "fashion" and filters.get("gender"):
+            conditions.append("gender = ?")
+            params.append(filters["gender"])
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " LIMIT 5"
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            return f"Sorry, no {filters.get('gender','')} {category} products match your request."
+
+        response = "Here are some options:\n"
+        for name, price, gender in rows:
+            response += f"- {name} – ₹{price}\n"
+
+        response += "Say **buy this <product name>** to place an order."
+        return response
 
     except Exception as e:
-        print("❌ Shopping agent error:", e)
-        return "I found some products but had trouble explaining them. Please try again."
+        print("SHOPPING ERROR:", e)
+        return "Something went wrong while fetching products."
+
+
+def continue_order_flow(user_key, user_input):
+    session = ORDER_SESSIONS[user_key]
+
+    if session["step"] == "name":
+        session["name"] = user_input
+        session["step"] = "phone"
+        return "Please share your mobile number."
+
+    if session["step"] == "phone":
+        session["phone"] = user_input
+        session["step"] = "address"
+        return "Please share your delivery address."
+
+    if session["step"] == "address":
+        session["address"] = user_input
+        session["step"] = "payment"
+        return "Choose payment method: COD or ONLINE."
+
+    if session["step"] == "payment":
+        payment = user_input.lower()
+        order_id = generate_order_id()
+
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO orders (
+                order_id, user_id, product_name, category, price,
+                name, phone, address, payment_method,
+                payment_status, order_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            order_id,
+            user_key,
+            session["product"],
+            session["category"],
+            session["price"],
+            session["name"],
+            session["phone"],
+            session["address"],
+            payment.upper(),
+            "PAID" if payment == "online" else "PENDING",
+            "CONFIRMED"
+        ))
+
+        conn.commit()
+        conn.close()
+        del ORDER_SESSIONS[user_key]
+
+        if payment == "cod":
+            return (
+                f"✅ Order placed successfully!\n"
+                f"Order ID: {order_id}\n"
+                f"Product: {session['product']}\n"
+                f"Price: ₹{session['price']}\n"
+                f"Payment: COD\n"
+                f"Status: CONFIRMED"
+            )
+
+        return (
+            f"💳 Complete payment here: "
+            f"<a href='http://localhost:5000/pay/{order_id}' "
+            f"class='payment-link' target='_blank'>"
+            f"Click to Pay for Order {order_id}</a>"
+        )

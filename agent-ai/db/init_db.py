@@ -1,28 +1,99 @@
-import duckdb
+# db/init_db.py
 
-con = duckdb.connect("shop.db")
+import sqlite3
 
-con.execute("""
-CREATE TABLE IF NOT EXISTS products (
-    id INTEGER,
+DB_PATH = "shopping.db"
+
+conn = sqlite3.connect(DB_PATH)
+cur = conn.cursor()
+
+# -------------------------------------------------
+# MOBILES TABLE
+# -------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS mobiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
-    category TEXT,
+    brand TEXT,
+    rear_camera INTEGER,
+    front_camera INTEGER,
+    ram INTEGER,
+    storage INTEGER,
+    battery INTEGER,
     price INTEGER,
-    camera_mp INTEGER
+    stock INTEGER
 )
 """)
 
-con.execute("DELETE FROM products")
+# -------------------------------------------------
+# FASHION TABLE
+# -------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS fashion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    category TEXT,
+    gender TEXT,
+    season TEXT,
+    material TEXT,
+    waterproof INTEGER,
+    price INTEGER,
+    stock INTEGER
+)
+""")
 
-products = [
-    (1, "Redmi Note 13", "phone", 18000, 50),
-    (2, "Samsung Galaxy A15", "phone", 17000, 50),
-    (3, "Realme Narzo 60", "phone", 19000, 50),
-    (4, "iPhone 12", "phone", 45000, 12),
-    (5, "Dell Inspiron", "laptop", 55000, None),
-]
+# -------------------------------------------------
+# COSMETICS TABLE
+# -------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS cosmetics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    brand TEXT,
+    type TEXT,
+    skin_type TEXT,
+    gender TEXT,
+    price INTEGER,
+    stock INTEGER
+)
+""")
 
-con.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", products)
-con.close()
+# -------------------------------------------------
+# ORDERS TABLE
+# -------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT,
+    user_id TEXT,
+    product_name TEXT,
+    category TEXT,
+    price INTEGER,
+    name TEXT,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    payment_method TEXT,
+    payment_status TEXT,
+    order_status TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
 
-print("DuckDB initialized")
+# -------------------------------------------------
+# COMPLAINTS / RETURNS TABLE
+# -------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS complaints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT,
+    complaint_type TEXT,
+    status TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+conn.commit()
+conn.close()
+
+print("✅ Database initialized successfully with all required tables")
