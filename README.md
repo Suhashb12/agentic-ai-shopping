@@ -1,15 +1,15 @@
-# 🛒 AI Shopping Assistant — Agentic AI 
+# 🛒 AI Shopping Assistant, Agentic AI 
 
-An **Agentic AI–powered Shopping Assistant** built using **Python, Flask, LangChain, Groq LLM, and SQLite**, designed to simulate a real-world e-commerce assistant with memory, authentication, and grounded product recommendations.
+An **Agentic AI–powered Shopping Assistant** built using **Python, Flask, LangChain, Groq LLM, and SQLite**, designed to simulate a real world e-commerce assistant with memory, authentication, and grounded product recommendations.
 
-This project demonstrates **agentic reasoning**, **LLM orchestration**, **user memory**, and **safe AI behavior** — similar to ChatGPT, but tailored for shopping use-cases.
+This project demonstrates **agentic reasoning**, **LLM orchestration**, **user memory**, and **safe AI behavior**, similar to ChatGPT, but tailored for shopping use-cases.
 
 ---
 
 ## 🚀 Key Capabilities
 
 ### 🤖 AI Capabilities
-- Fully LLM-based intent understanding
+- Fully LLM based intent understanding
 - Agentic reasoning (not rule-based)
 - Calm, professional, step-by-step responses
 - Safe handling of sensitive topics (no OTP/payment misuse)
@@ -17,16 +17,16 @@ This project demonstrates **agentic reasoning**, **LLM orchestration**, **user m
 - Budget & feature-aware recommendations
 
 ### 🧠 Agent Memory
-- User chat history (per logged-in user)
+- User chat history (per logged in user)
 - Preference memory (e.g., last category searched)
 - Guest users get temporary memory (lost on refresh)
 
 ### 🛍️ Shopping Use-Cases Supported
 - Product discovery
-- Budget-based recommendations
-- Feature-based filtering
+- Budget based recommendations
+- Feature based filtering
 - Category switching
-- Expert-style product explanation
+- Expert style product explanation
 
 ---
 
@@ -55,8 +55,8 @@ Deployment | Local VM / Hackathon demo |
 - User signup
 - Login & logout
 - Password hashing
-- Session-based authentication
-- Per-user chat persistence
+- Session based authentication
+- Per user chat persistence
 
 ### 📧 Email Verification (Hackathon Mode)
 - Verification links are **printed to terminal**
@@ -97,13 +97,13 @@ Generic product schema:
 
 ## 🖥️ Frontend Experience
 
-- ChatGPT-style UI
+- ChatGPT style UI
 - 80% width centered chat
 - Async chat (no reload)
 - “Thinking…” indicator
 - Signup modal popup after 2 seconds (guest only)
 - Guest mode vs logged-in mode
-- Chat history auto-restores on login
+- Chat history auto restores on login
 
 ---
 
@@ -111,8 +111,8 @@ Generic product schema:
 
 ### 1️⃣ Create virtual environment
 ```bash
-python -m venv aiagent
-source aiagent/bin/activate
+python -m venv ai-agent
+source ai-agent/bin/activate
 ```
 
 2️⃣ Install dependencies
