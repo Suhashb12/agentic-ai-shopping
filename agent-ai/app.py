@@ -1,169 +1,75 @@
-from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from flask import Flask, request, jsonify, render_template, session, redirect
 import sqlite3
 
-# ---- Core AI logic ----
-
-from agents.complaint_agent import handle_complaint
 from llm.intent_classifier import classify_intent
 from agents.shopping_agent import existing_ai_pipeline
 from agents.order_tracking_agent import track_order
+from agents.complaint_agent import handle_complaint, complete_refund
 
 DB_PATH = "shopping.db"
-
 app = Flask(__name__)
 app.secret_key = "dev-secret-key"
 
-
-# -------------------------------------------------
-# 🏠 Home
-# -------------------------------------------------
 @app.route("/")
 def index():
     return render_template("chat.html")
 
-
-# -------------------------------------------------
-# 💬 Chat Router (MAIN ENTRY)
-# -------------------------------------------------
 @app.route("/chat", methods=["POST"])
 def chat():
-    user_input = request.json.get("message", "").strip()
-    if not user_input:
-        return jsonify({"reply": "Please enter a message."})
+    msg = request.json.get("message", "").strip()
+    intent_data = classify_intent(msg)
+    intent = intent_data.get("intent")
 
-    user_id = session.get("user_id")  # None if guest
+    if intent == "track_order":
+        return jsonify({"reply": track_order(intent_data["order_id"])})
 
-    try:
-        intent_data = classify_intent(user_input)
-        intent = intent_data.get("intent")  # ✅ FIX
+    if intent in ["raise_complaint", "return_order", "replace_order"]:
+        return jsonify({"reply": handle_complaint(intent_data)})
 
-        # -------------------------
-        # ORDER TRACKING
-        # -------------------------
-        if intent == "track_order":
-            order_id = intent_data.get("order_id")
-            reply = track_order(order_id)
-            return jsonify({"reply": reply})
+    return jsonify({"reply": existing_ai_pipeline(msg, session.get("user_id"))})
 
-        # -------------------------
-        # COMPLAINT / RETURN
-        # -------------------------
-        if intent in ["raise_complaint", "return_order", "replace_order"]:
-            reply = handle_complaint(intent_data)
-            return jsonify({"reply": reply})
-
-        # -------------------------
-        # SHOPPING / ORDER FLOW
-        # -------------------------
-        reply = existing_ai_pipeline(user_input, user_id)
-        return jsonify({"reply": reply})
-
-    except Exception as e:
-        print("CHAT ERROR:", e)
-        return jsonify({"reply": "Something went wrong. Please try again."})
-
-
-# -------------------------------------------------
-# 💳 Payment Page
-# -------------------------------------------------
 @app.route("/pay/<order_id>")
 def pay(order_id):
     return render_template("payment.html", order_id=order_id)
 
-
-# -------------------------------------------------
-# ✅ Payment Success
-# -------------------------------------------------
 @app.route("/payment-success/<order_id>")
 def payment_success(order_id):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-
-    cur.execute("""
-        UPDATE orders
-        SET payment_status = 'PAID',
-            order_status = 'CONFIRMED'
-        WHERE order_id = ?
-    """, (order_id,))
+    cur.execute("UPDATE orders SET payment_status='PAID' WHERE order_id=?", (order_id,))
     conn.commit()
-
-    cur.execute("""
-        SELECT product_name, price, payment_method
-        FROM orders
-        WHERE order_id = ?
-    """, (order_id,))
-    row = cur.fetchone()
     conn.close()
+    return render_template("payment_success.html", order_id=order_id)
 
-    product, price, payment = row if row else ("Unknown", 0, "ONLINE")
-
-    return render_template(
-        "payment_success.html",
-        order_id=order_id,
-        product=product,
-        price=price,
-        payment=payment
-    )
-
-
-# -------------------------------------------------
-# 🔐 Minimal Auth (Optional)
-# -------------------------------------------------
-@app.route("/login", methods=["POST"])
-def login():
-    session["user_id"] = request.json.get("user_id")
-    return jsonify({"status": "logged_in"})
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return jsonify({"status": "logged_out"})
-
-# ------------------------------------
-# ORDER DETAILS API (USED BY CHAT.JS)
-# ------------------------------------
-@app.route("/api/order/<order_id>", methods=["GET"])
-def get_order(order_id):
-    import sqlite3
-
-    conn = sqlite3.connect("shopping.db")
+@app.route("/api/order/<order_id>")
+def api_order(order_id):
+    conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-
     cur.execute("""
         SELECT product_name, price, payment_method, order_status
-        FROM orders
-        WHERE order_id = ?
+        FROM orders WHERE order_id=?
     """, (order_id,))
-
     row = cur.fetchone()
     conn.close()
 
     if not row:
         return jsonify({"error": "Order not found"}), 404
 
-    product, price, payment, status = row
-
     return jsonify({
         "order_id": order_id,
-        "product": product,
-        "price": price,
-        "payment": payment,
-        "status": status
+        "product": row[0],
+        "price": row[1],
+        "payment": row[2],
+        "status": row[3]
     })
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
-
-        if username == "admin" and password == "admin@4sy6":
+        if request.form["username"] == "admin" and request.form["password"] == "admin@4sy6":
             session["admin"] = True
             return redirect("/admin/dashboard")
-
         return "Invalid credentials", 401
-
     return render_template("admin_login.html")
 
 @app.route("/admin/dashboard")
@@ -173,28 +79,24 @@ def admin_dashboard():
 
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT o.order_id, o.product_name, o.order_status
-        FROM orders o
-        WHERE o.order_status = 'REFUND_INITIATED'
-    """)
-
+    cur.execute("SELECT order_id, product_name FROM orders WHERE order_status='RETURN_REQUESTED'")
     orders = cur.fetchall()
     conn.close()
-
     return render_template("admin_dashboard.html", orders=orders)
 
 @app.route("/admin/refund/<order_id>", methods=["POST"])
 def approve_refund(order_id):
-    if not session.get("admin"):
-        return "Unauthorized", 403
-
     complete_refund(order_id)
     return redirect("/admin/dashboard")
 
-# -------------------------------------------------
-# 🚀 Run
-# -------------------------------------------------
+@app.route("/login", methods=["GET"])
+def user_login_page():
+    return "User login not implemented yet. Please continue as guest."
+
+@app.route("/signup", methods=["GET"])
+def user_signup_page():
+    return "User signup not implemented yet. Please continue as guest."
+
+
 if __name__ == "__main__":
     app.run(debug=True)

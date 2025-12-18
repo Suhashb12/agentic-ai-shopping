@@ -93,6 +93,34 @@ CREATE TABLE IF NOT EXISTS complaints (
 )
 """)
 
+cur.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE,
+    full_name TEXT,
+    password_hash TEXT,
+    is_verified INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    token TEXT
+)
+""")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS email_tokens (
+    email TEXT,
+    token TEXT,
+    expires_at TIMESTAMP
+)
+""")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS password_otps (
+    email TEXT,
+    otp TEXT,
+    expires_at TIMESTAMP
+)
+""")
+
 conn.commit()
 conn.close()
 

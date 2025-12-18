@@ -19,24 +19,22 @@ def existing_ai_pipeline(user_input: str, user_id: str = None):
     intent_data = classify_intent(user_input)
     intent = intent_data.get("intent")
 
-    # Start order flow
+    # Start order
     if intent == "place_order":
         product_name = intent_data.get("product")
         if not product_name:
             return "Please specify which product you want to buy."
+
+        clean = product_name.lower().replace("- men", "").replace("- women", "").strip()
 
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
 
         for table in ["mobiles", "fashion", "cosmetics"]:
             cur.execute(
-                f"""
-                SELECT name, price FROM {table}
-                WHERE LOWER(name) LIKE ?
-                """,
-                (f"%{product_name.lower()}%",)
+                f"SELECT name, price FROM {table} WHERE LOWER(name) LIKE ?",
+                (f"%{clean}%",)
             )
-
             row = cur.fetchone()
             if row:
                 product, price = row
@@ -54,7 +52,6 @@ def existing_ai_pipeline(user_input: str, user_id: str = None):
             "price": price,
             "category": category
         }
-
         return "Please share your full name."
 
     return handle_shopping(intent_data)
@@ -67,65 +64,58 @@ def handle_shopping(intent_data):
     if category not in ["fashion", "mobiles", "cosmetics"]:
         return "I can help you with mobiles, fashion, and cosmetics."
 
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
-        query = f"SELECT name, price, gender FROM {category}"
-        conditions = []
-        params = []
+    query = f"SELECT name, price, gender FROM {category}"
+    conditions, params = [], []
 
-        if "budget" in filters and filters["budget"]:
-            conditions.append("price <= ?")
-            params.append(filters["budget"])
+    if filters.get("budget"):
+        conditions.append("price <= ?")
+        params.append(filters["budget"])
 
-        if category == "fashion" and filters.get("gender"):
-            conditions.append("gender = ?")
-            params.append(filters["gender"])
+    if category == "fashion" and filters.get("gender"):
+        conditions.append("gender = ?")
+        params.append(filters["gender"])
 
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
 
-        query += " LIMIT 5"
+    query += " LIMIT 5"
+    cur.execute(query, params)
+    rows = cur.fetchall()
+    conn.close()
 
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        conn.close()
+    if not rows:
+        return "Sorry, no products match your request."
 
-        if not rows:
-            return f"Sorry, no {filters.get('gender','')} {category} products match your request."
+    reply = "Here are some options:\n"
+    for name, price, gender in rows:
+        reply += f"- {name} - {gender} – ₹{price}\n"
 
-        response = "Here are some options:\n"
-        for name, price, gender in rows:
-            response += f"- {name} – ₹{price}\n"
-
-        response += "Say **buy this <product name>** to place an order."
-        return response
-
-    except Exception as e:
-        print("SHOPPING ERROR:", e)
-        return "Something went wrong while fetching products."
+    reply += "Say **buy this <product name>** to place an order."
+    return reply
 
 
 def continue_order_flow(user_key, user_input):
-    session = ORDER_SESSIONS[user_key]
+    s = ORDER_SESSIONS[user_key]
 
-    if session["step"] == "name":
-        session["name"] = user_input
-        session["step"] = "phone"
+    if s["step"] == "name":
+        s["name"] = user_input
+        s["step"] = "phone"
         return "Please share your mobile number."
 
-    if session["step"] == "phone":
-        session["phone"] = user_input
-        session["step"] = "address"
+    if s["step"] == "phone":
+        s["phone"] = user_input
+        s["step"] = "address"
         return "Please share your delivery address."
 
-    if session["step"] == "address":
-        session["address"] = user_input
-        session["step"] = "payment"
+    if s["step"] == "address":
+        s["address"] = user_input
+        s["step"] = "payment"
         return "Choose payment method: COD or ONLINE."
 
-    if session["step"] == "payment":
+    if s["step"] == "payment":
         payment = user_input.lower()
         order_id = generate_order_id()
 
@@ -139,14 +129,8 @@ def continue_order_flow(user_key, user_input):
                 payment_status, order_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            order_id,
-            user_key,
-            session["product"],
-            session["category"],
-            session["price"],
-            session["name"],
-            session["phone"],
-            session["address"],
+            order_id, user_key, s["product"], s["category"], s["price"],
+            s["name"], s["phone"], s["address"],
             payment.upper(),
             "PAID" if payment == "online" else "PENDING",
             "CONFIRMED"
@@ -160,8 +144,8 @@ def continue_order_flow(user_key, user_input):
             return (
                 f"✅ Order placed successfully!\n"
                 f"Order ID: {order_id}\n"
-                f"Product: {session['product']}\n"
-                f"Price: ₹{session['price']}\n"
+                f"Product: {s['product']}\n"
+                f"Price: ₹{s['price']}\n"
                 f"Payment: COD\n"
                 f"Status: CONFIRMED"
             )
